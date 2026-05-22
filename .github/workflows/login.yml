@@ -62,6 +62,8 @@ jobs:
           # 需要在 GitHub 仓库设置中配置 secrets.ACCOUNTS
           # 注意：账号密码以明文形式存储在 Secrets 中，请确保仓库是私有的
           ACCOUNTS: ${{ secrets.ACCOUNTS }}
+          # 账号 URL：格式为 "URL1,URL2"
+          URLS: ${{ secrets.URLS }}
         
         # 执行 login.js：通过 fetch 访问账号 URL 保活，并通过 Telegram 发送通知
         run: npm start
