@@ -4,5 +4,8 @@
   "main": "login.js",
   "scripts": {
     "start": "node login.js"
+  },
+  "dependencies": {
+    "@upstash/redis": "^1.38.0"
   }
 }

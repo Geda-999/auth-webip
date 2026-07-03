@@ -1,9 +1,18 @@
+import { Redis } from "@upstash/redis";
 
 const token = process.env.BOT_TOKEN;
 const chatId = process.env.CHAT_ID;
 const accounts = process.env.ACCOUNTS;
 const urls = process.env.URLS;
+const upstashURL = process.env.UPSTASH_URL;
+const upstashToken = process.env.UPSTASH_TOKEN;
 
+
+// 方式1：显式传入凭证
+const redis = new Redis({
+  url: upstashURL,
+  token: upstashToken,
+});
 
 async function getAccounts() {
   if (accounts) {
@@ -104,7 +113,45 @@ async function loginWithAccount(user, index) {
   return result;
 }
 
+async function handleUpstash() {
+  if (!upstashURL || !upstashToken) {
+    console.log("❌ Upstash 配置缺失，无法执行 Redis 操作");
+    return { success: false, message: "Upstash 配置不完整" };
+  }
+
+  try {
+    // 1. 创建带过期时间的临时数据
+    await redis.setex("tempKey", 60, "临时数据");
+
+    // 2. 设置一个用户年龄
+    await redis.set("user:age", 25);
+
+    // 3. 获取并打印用户年龄
+    const age1 = await redis.get("user:age");
+    console.log(`user:age 初始: ${age1}`);
+
+    // 4. 更新用户年龄
+    await redis.set("user:age", 26);
+
+    // 5. 再次获取并打印
+    const age2 = await redis.get("user:age");
+    console.log(`user:age 更新后: ${age2}`);
+
+    // 6. 删除该 key
+    await redis.del("user:age");
+
+    console.log("✅ Upstash Redis 基本操作全部成功");
+    return { success: true, message: "Upstash Redis 基本操作全部成功" };
+  } catch (err) {
+    console.log("⚠️ Upstash Redis 操作失败：", err);
+    return { success: false, message: "Upstash Redis 操作失败: " + err.message };
+  }
+}
+
 async function main() {
+
+  // 测试 Upstash
+  const upsMessage = await handleUpstash();
   
   const accountList = await getAccounts();
   // console.log('accountList>>>', accountList);
@@ -143,7 +190,7 @@ async function main() {
   const successCount = results.filter(r => r.success).length;
   const totalCount = results.length;
   
-  let summaryMessage = `📊 登录汇总: ${successCount}/${totalCount} 个账号成功\n\n`;
+  let summaryMessage = `📊 Upstash信息: ${upsMessage.message}\n\n📊 登录汇总: ${successCount}/${totalCount} 个账号成功\n\n`;
   
   results.forEach(result => {
     summaryMessage += `${result.message}\n`;
