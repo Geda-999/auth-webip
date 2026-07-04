@@ -45,8 +45,8 @@ jobs:
 
       # 步骤3：安装依赖（@upstash/redis 等）
       - name: Install dependencies
-        # run: npm ci
-        run: npm install
+        run: npm ci
+        # run: npm install
 
       # 步骤4：运行登录脚本
       # 执行实际的自动登录逻辑
