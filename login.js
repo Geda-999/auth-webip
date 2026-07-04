@@ -160,7 +160,7 @@ async function handleUpstash() {
 
   return {
     success: successCount === results.length,
-    message: `Upstash 汇总: ${successCount}/${results.length} 成功\n${message}`,
+    message: `📊 Upstash 汇总: ${successCount}/${results.length} 成功\n${message}`,
   };
 }
 
@@ -209,7 +209,7 @@ async function main() {
   const successCount = results.filter(r => r.success).length;
   const totalCount = results.length;
   
-  let summaryMessage = `📊 Upstash信息: ${upsMessage.message}\n\n📊 登录汇总: ${successCount}/${totalCount} 个账号成功\n\n`;
+  let summaryMessage = `${upsMessage.message}\n\n📊 登录汇总: ${successCount}/${totalCount} 个账号成功\n\n`;
   
   results.forEach(result => {
     summaryMessage += `${result.message}\n`;
