@@ -107,7 +107,7 @@ async function loginWithAccount(user, index) {
 }
 
 async function handleUpstashSingle({ url, token }, index) {
-  const label = url.replace(/^https?:\/\//, '').split('.')[0] || `Upstash-${index}`;
+  const label = url.replace(/^https?:\/\//, '').split('.')[0].split('-')[0] || `Upstash-${index}`;
   const redis = new Redis({ url, token });
 
   try {
