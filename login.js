@@ -4,38 +4,25 @@ const token = process.env.BOT_TOKEN;
 const chatId = process.env.CHAT_ID;
 const accounts = process.env.ACCOUNTS;
 const urls = process.env.URLS;
+const upstashList = process.env.UPSTASH_LIST;
 const upstashURL = process.env.UPSTASH_URL;
-const upstashToken = process.env.UPSTASH_TOKEN;
 
 
-// 方式1：显式传入凭证
-const redis = new Redis({
-  url: upstashURL,
-  token: upstashToken,
-});
-
-async function getAccounts() {
-  if (accounts) {
+async function getAccounts(str, url, type) {
+  if (str) {
     // 尝试解析本地 ACCOUNTS 环境变量或常量，优先使用逗号分隔，回退为原始字符串
     try {
-      let local = accounts.trim();
-      if (local.startsWith("[")) {
-        // 尝试 JSON 格式
-        return JSON.parse(local);
-      }
-      if (local.includes(',')) {
-        return local.split(',').map(i => i.trim()).filter(Boolean);
-      }
-      return [local];
+      let local = str.trim();
+      return type ? parseAccounts(local) : local.split(',').map(i => i.trim()).filter(Boolean);
     } catch (e) {
       console.error('本地 ACCOUNTS 解析失败:', e);
       return null;
     }
   }
-  if (!urls) return null;
+  if (!url) return null;
   let text;
   try {
-    const resp = await fetch(urls);
+    const resp = await fetch(url);
     text = await resp.text();
     // console.log('list>>>', text);
   } catch (e) {
@@ -45,17 +32,23 @@ async function getAccounts() {
 
   // 尝试 JSON.parse，回退为逗号分隔字符串
   try {
-    if (text.startsWith('[')) {
-      return JSON.parse(text);
-    }
-    if (text.includes(',')) {
-      return text.split(',').map(i => i.trim()).filter(Boolean);
-    }
-    return [text.trim()];
+    return type ? parseAccounts(text) : text.split(',').map(i => i.trim()).filter(Boolean);
   } catch (e) {
     console.error('JSON 解析失败:', e);
     return null;
   }
+}
+
+/** 解析 "url1:token1,url2:token2"（支持逗号/分号分隔）格式 */
+function parseAccounts(raw) {
+  if (!raw) return [];
+  return raw
+    .split(/[,;]/)
+    .map((entry) => {
+      const [url, token] = entry.split('--').map((s) => s.trim());
+      return { url, token };
+    })
+    .filter((acc) => acc.url && acc.token);
 }
 
 async function sendTelegram(message) {
@@ -113,49 +106,75 @@ async function loginWithAccount(user, index) {
   return result;
 }
 
+async function handleUpstashSingle({ url, token }, index) {
+  const label = url.replace(/^https?:\/\//, '').split('.')[0] || `Upstash-${index}`;
+  const redis = new Redis({ url, token });
+
+  try {
+    await redis.setex("tempKey", 60, "临时数据");
+    await redis.set("user:age", 25);
+
+    const age1 = await redis.get("user:age");
+    console.log(` user:age 初始: ${age1}`);
+
+    await redis.set("user:age", 26);
+
+    const age2 = await redis.get("user:age");
+    console.log(` user:age 更新后: ${age2}`);
+
+    await redis.del("user:age");
+
+    console.log(`✅  Upstash Redis 操作成功`);
+    return { label, success: true, message: `✅ ${label} Redis 操作成功` };
+  } catch (err) {
+    console.log(`⚠️  Upstash Redis 操作失败：`, err);
+    return { label, success: false, message: `❌ ${label} Redis 操作失败: ${err.message}` };
+  }
+}
+
 async function handleUpstash() {
-  if (!upstashURL || !upstashToken) {
+  const list = await getAccounts(upstashList, upstashURL, true);
+  // console.log('Upstash 列表:', list);
+  // return
+
+  if (list.length === 0) {
     console.log("❌ Upstash 配置缺失，无法执行 Redis 操作");
     return { success: false, message: "Upstash 配置不完整" };
   }
 
-  try {
-    // 1. 创建带过期时间的临时数据
-    await redis.setex("tempKey", 60, "临时数据");
+  console.log(`🔍 发现 ${list.length} 个 Upstash 实例需要检测`);
+  const results = [];
 
-    // 2. 设置一个用户年龄
-    await redis.set("user:age", 25);
+  for (let i = 0; i < list.length; i++) {
+    console.log(`\n📋 处理第 ${i + 1}/${list.length} 个 Upstash 实例`);
+    results.push(await handleUpstashSingle(list[i], i + 1));
 
-    // 3. 获取并打印用户年龄
-    const age1 = await redis.get("user:age");
-    console.log(`user:age 初始: ${age1}`);
-
-    // 4. 更新用户年龄
-    await redis.set("user:age", 26);
-
-    // 5. 再次获取并打印
-    const age2 = await redis.get("user:age");
-    console.log(`user:age 更新后: ${age2}`);
-
-    // 6. 删除该 key
-    await redis.del("user:age");
-
-    console.log("✅ Upstash Redis 基本操作全部成功");
-    return { success: true, message: "Upstash Redis 基本操作全部成功" };
-  } catch (err) {
-    console.log("⚠️ Upstash Redis 操作失败：", err);
-    return { success: false, message: "Upstash Redis 操作失败: " + err.message };
+    if (i < list.length - 1) {
+      console.log('⏳ 等待1秒后处理下一个 Upstash 实例...');
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
   }
+
+  const successCount = results.filter((r) => r.success).length;
+  const message = results.map((r) => r.message).join('\n');
+
+  return {
+    success: successCount === results.length,
+    message: `Upstash 汇总: ${successCount}/${results.length} 成功\n${message}`,
+  };
 }
 
 async function main() {
 
   // 测试 Upstash
-  const upsMessage = await handleUpstash();
+  const upsMessage = await handleUpstash(); 
+  // console.log('upsMessage>>>', upsMessage);
+  // return
   
-  const accountList = await getAccounts();
+  const accountList = await getAccounts(accounts, urls, false);
   // console.log('accountList>>>', accountList);
   // return
+
   if (!accountList) {
     console.log('❌ 未配置账号');
     process.exit(1);

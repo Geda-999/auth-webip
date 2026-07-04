@@ -71,9 +71,9 @@ jobs:
           URLS: ${{ secrets.URLS }}
 
           # Upstash Redis REST API 凭证
-          # 需要在 GitHub 仓库设置中配置 secrets.UPSTASH_URL 和 secrets.UPSTASH_TOKEN
+          # 需要在 GitHub 仓库设置中配置 secrets.UPSTASH_LIST 和 secrets.UPSTASH_URL
+          UPSTASH_LIST: ${{ secrets.UPSTASH_LIST }}
           UPSTASH_URL: ${{ secrets.UPSTASH_URL }}
-          UPSTASH_TOKEN: ${{ secrets.UPSTASH_TOKEN }}
         
         # 执行 login.js：通过 fetch 访问账号 URL 保活，并通过 Telegram 发送通知
         run: npm start
