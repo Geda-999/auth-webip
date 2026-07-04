@@ -23,6 +23,5 @@ selenium-debug.log
 *.local
 .svn
 
-package-lock.json
 yarn.lock
 
